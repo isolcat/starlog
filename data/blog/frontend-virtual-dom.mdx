@@ -1,0 +1,433 @@
+---
+title: '前端指北：虚拟DOM'
+date: '2024-12-05'
+summary: '从背景动机到手写实现，通俗讲解 Virtual DOM、渲染与 diff 的核心流程。'
+tags: ['前端', 'Virtual DOM', '教程']
+layout: PostLayout
+draft: false
+---
+
+# 前端指北：虚拟DOM
+
+# 前言
+
+我近期计划创作一个针对前端的系列文章，希望通过描绘简洁并直观的图像和生动形象的语言，使读者能快速把握前端的核心概念。如果这些内容能进一步促使读者对前端有更深的思考，那便是极好的。
+
+之所以选择**Virtual DOM**作为本系列的第一篇，是因为在我看来，现代前端开发中的重大变革之一就是引入了Virtual DOM的概念，它通过抽象真实DOM的操作，提高了性能和开发效率，成为了现代前端开发的基石。
+
+但是对于很多前端新人或者是已经入行有一段时间的朋友来说，Virtual DOM的概念以及实现的细节仍然有些晦涩难懂，因此我希望能在《前端指北》这个系列的第一篇文章中，深入的去探讨Virtual DOM，通过图解和实际代码，让读者能够清晰理解其工作原理和优势
+
+# 为什么是Virtual DOM？为什么现在又开始推崇无Virtual DOM?
+
+> 在JQuery时代，大约是2010年左右的时候，这时候的JQuery非常的流行，但JQuery一直有一个痛点没有解决：应用程序的复杂性使得前端数据处理变得非常重要。数据越多，DOM树中的变化就越多。导致每次更改的时候会导致大面积的变化，这也让性能有了瓶颈，迟迟没有得到突破……
+> 
+
+到了框架时代，也就是大家现在所熟知的三剑客：**AngularJS React.js Vue.js**，而Virtual DOM的概念，也就始于此。在2013年的时候，React.js发布了一个新的模式，Virtual DOM，而这其中最核心的一个想法就是：**精准更新。**这无疑解决了JQuery最大的痛点，对于开发者来说，也没了那么大的心智负担
+
+但如果你很关注前端框架的发展，你一定知道Vue最近在研究一种新的模式，也就是大家常说的**无Virtual DOM——Vue Vapor**
+
+既然Virtual DOM解决了jQuery的痛点，为什么还要推崇这种新的模式呢？如果新的模式那么好，为什么React不去跟进呢？其实，这种模式也不是最近才出现的。Vue也是从Solid中找到了灵感。事实上，两年前就有用户在Reddit上提出了类似的疑问：
+
+![Untitled](/static/images/blog/frontend-virtual-dom/819c0b7b-2189-4f6d-a046-75f7fae68cfe.png)
+
+但非常遗憾，帖子并没有直接的回答…..我们也只能去从兼容性、跨平台、以及这种破坏性更新可能会让目前的生态出现断层这些角度去考量了
+
+我们这里不过多的去猜测原因，回到正题，为什么现在Vue开始选择引入新的模式呢？根据尤大发布的**2022 Year In Review**里边提到了这一点：
+
+> Vapor Mode is an alternative compilation strategy that we have been experimenting with, inspired by [**Solid**](https://www.solidjs.com/). Given the same Vue SFC, Vapor Mode compiles it into JavaScript output that is **more performant, uses less memory, and requires less runtime support code compared** to the current Virtual DOM based output.
+> 
+
+简单的概括就是Vue vapor模式**会性能更好，内存使用更少**
+
+如果后续Vue vapor正式版发布了，我会单独出一篇文章进行讲解，现在还是让我们进入正题吧，接下来我会尽可能的用通俗易懂的语言来讲解如何一步步的去实现一个Virtual DOM！
+
+# 初始化项目
+
+让我们先创建并进入我们的项目目录：
+
+```bash
+$mkdir demo
+$cd demo
+```
+
+这里我们选择开箱即用的配置工具：https://parceljs.org/
+
+```bash
+yarn add parcel
+```
+
+为了能够更加直观的看到页面的变化，让我随便创建一个html文件
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Virtual DOM DEMO</title>
+</head>
+
+<body>
+  <script type="module" src="./main.js"></script>
+</body>
+
+</html>
+```
+
+修改package.json：
+
+```json
+{
+  "scripts": {
+    "dev": "parcel src/demo.html"
+  },
+  "dependencies": {
+    "parcel": "^2.12.0"
+  }
+}
+```
+
+到此，前置工作完成！
+
+# **createElement**
+
+大多数文章实现Virtual DOM的第一步，便是创建名为**createElement**的函数，而受到早期的hyperscript的影响，该函数通常被称为**h**函数（例如Vue），而这个函数的作用是返回一个”虚拟元素“，让我们来创建这个函数：
+
+```jsx
+export default(tagName,option)=>{
+  return{
+    tagName,
+    option
+  }
+}
+```
+
+没有get到意思不要紧，让我们举个常见的例子，比如现在出了一款新的游戏，作为游戏宅的你直接就是一个下载，进入到游戏里，发现要创建角色了，现在需要选择你的角色职业，比如弓箭手，或者战士，这里就可以理解成TagName，而一些捏脸，技能的选择就可以理解成Option
+
+![Untitled](/static/images/blog/frontend-virtual-dom/untitled.png)
+
+让我们再来细化一下呢？在角色的属性上，我们可以配置很多相关的参数，这里我们就叫他props吧，在我们定义好了角色之后可能还会有角色的宠物需要自定义，又有对应的tageName和option，这里我们就叫他children吧，有些用户比较懒，会直接选择游戏厂商给的默认的参数就进去了，那这时候我们就给他们传递个默认的选择或者值吧：
+
+```jsx
+export default (tagName, { props = {}, children = [] }) => {
+  return {
+    tagName,
+    props,
+    children
+  }
+}
+```
+
+![Untitled](/static/images/blog/frontend-virtual-dom/untitled-1.png)
+
+现在让我们在main.js里引入createElement.js，并完善我们想要创建的页面:
+
+```jsx
+import h from '../src/fn/h.js'
+
+const vApp = h('div', {
+  props: {
+    id: 'app'
+  },
+})
+console.log(vApp)
+```
+
+终端起服务：
+
+![Untitled](/static/images/blog/frontend-virtual-dom/untitled-2.png)
+
+打开控制台即可查看到我们定义的Virtual DOM：
+
+![Untitled](/static/images/blog/frontend-virtual-dom/untitled-3.png)
+
+# render
+
+当我得到了可以为我们生成Virtual DOM的函数，那我们接下来的目标就很明确了，就是将Virtual DOM转为DOM，就像我们创建好了一个角色，准备进入游戏一样，现在需要将我们创建好的角色蓝图渲染到游戏中，让我们定义一个render函数来实现这一需求吧：
+
+```jsx
+const render = (vNode) => {
+  const $el = document.createElement(vNode.tagName);
+
+  for (const [k, v] of Object.entries(vNode.props)) {
+    $el.setAttribute(k, v);
+  }
+
+  for (const child of vNode.children) {
+    $el.appendChild(render(child));
+  }
+
+  return $el;
+}
+export default render;
+```
+
+![Untitled](/static/images/blog/frontend-virtual-dom/untitled-4.png)
+
+# 处理不同类型Node
+
+[nodeType](https://developer.mozilla.org/zh-CN/docs/Web/API/Node/nodeType)表示该节点的类型，一共有八个类型，这里我们只来处理我们需要使用的nodeType：**ElementNode**和**TextNode**
+
+让我们来扩展一下render.js来让他支持这两个nodeType:
+
+```jsx
+const renderElem = ({ tagName, props, children }) => {
+  const $el = document.createElement(tagName);
+
+  for (const [k, v] of Object.entries(props)) {
+    $el.setAttribute(k, v);
+  }
+
+  for (const child of children) {
+    $el.appendChild(render(child));
+  }
+
+  return $el;
+};
+
+const render = (vNode) => {
+  if (typeof vNode === 'string') {
+    return document.createTextNode(vNode);
+  }
+
+  return renderElem(vNode);
+};
+
+export default render
+```
+
+# 渲染并挂载
+
+```jsx
+import h from '../src/fn/h.js'
+import render from '../src/fn/render.js'
+
+const vApp = h('div', {
+  props: {
+    id: 'app'
+  },
+  children: [
+    'Test Virtual DOM',
+    h('img', {
+      props: {
+        src: 'https://picsum.photos/200/300',
+      },
+    }),
+  ],
+})
+const $app = render(vApp);
+console.log($app);
+```
+
+查看控制台：
+
+![Untitled](/static/images/blog/frontend-virtual-dom/untitled-5.png)
+
+创建mount.js来让我们的内容可以成功的挂载到html上添加的`<div id="app"></div>`上：
+
+```jsx
+export default ($node, $target) => {
+  $target.replaceWith($node);
+  return $node;
+};
+```
+
+```jsx
+......
+import mount from '../src/fn/mount.js';
+
+......
+const $app = render(vApp);
+mount($app, document.getElementById('app'));
+```
+
+现在打开页面，便可以看见用随机图片链接生成的页面了：
+
+![Untitled](/static/images/blog/frontend-virtual-dom/untitled-6.png)
+
+# 让页面多点不确定性
+
+如果页面的元素在不断的变化呢？比如来一个随机的数字，还有输入框？
+
+```jsx
+import h from '../src/fn/h.js';
+import render from '../src/fn/render.js';
+import mount from '../src/fn/mount.js';
+
+let counter = 0;
+
+function createVApp() {
+  return h('div', {
+    props: {
+      id: 'app'
+    },
+    children: [
+      'Test Virtual DOM',
+      h('img', {
+        props: {
+          src: 'https://picsum.photos/200/300',
+        },
+      }),
+      h('div', {
+        props: {},
+        children: [`Number: ${counter}`]
+      }),
+      h('input', {
+        props: {
+          type: 'text',
+          placeholder: 'Type something...'
+        },
+      }),
+    ],
+  });
+}
+
+function update() {
+  counter++;
+  const vApp = createVApp();
+  const $app = render(vApp);
+  const container = document.getElementById('app');
+  container.innerHTML = ''; // 清空旧内容
+  mount($app, container);
+}
+
+// 初始渲染
+const vApp = createVApp();
+const $app = render(vApp);
+mount($app, document.getElementById('app'));
+
+// 每秒更新
+setInterval(update, 1000);
+```
+
+![Untitled](/static/images/blog/frontend-virtual-dom/untitled-7.png)
+
+这时候你会发现一个很奇怪的现象，当我们鼠标点到输入框的时候，随着数字的更新，他会不断的失焦，不要紧，这时候就需要我们的Diff算法出场了！
+
+# Diff算法
+
+如果对Diff算法在Vue当中的应用，可以参考我之前写的这篇文章：https://juejin.cn/post/7182374239582814266，这里不做过多阐述了，这里我直接提供代码:
+
+```jsx
+import render from './render';
+
+const zip = (xs, ys) => {
+  const zipped = [];
+  for (let i = 0; i < Math.min(xs.length, ys.length); i++) {
+    zipped.push([xs[i], ys[i]]);
+  }
+  return zipped;
+};
+
+const diffAttrs = (oldAttrs, newAttrs) => {
+  const patches = [];
+
+  
+  for (const [k, v] of Object.entries(newAttrs)) {
+    patches.push($node => {
+      $node.setAttribute(k, v);
+      return $node;
+    });
+  }
+
+ 
+  for (const k in oldAttrs) {
+    if (!(k in newAttrs)) {
+      patches.push($node => {
+        $node.removeAttribute(k);
+        return $node;
+      });
+    }
+  }
+
+  return $node => {
+    for (const patch of patches) {
+      patch($node);
+    }
+    return $node;
+  };
+};
+
+const diffChildren = (oldVChildren, newVChildren) => {
+  const childPatches = [];
+  oldVChildren.forEach((oldVChild, i) => {
+    // 递归比较每个子节点
+    childPatches.push(diff(oldVChild, newVChildren[i]));
+  });
+
+  // 处理新增的子节点
+  const additionalPatches = [];
+  for (const additionalVChild of newVChildren.slice(oldVChildren.length)) {
+    additionalPatches.push($node => {
+      $node.appendChild(render(additionalVChild));
+      return $node;
+    });
+  }
+
+  return $parent => {
+
+    for (const [patch, $child] of zip(childPatches, $parent.childNodes)) {
+      patch($child);
+    }
+
+    for (const patch of additionalPatches) {
+      patch($parent);
+    }
+    return $parent;
+  };
+};
+
+const diff = (oldVTree, newVTree) => {
+
+  if (newVTree === undefined) {
+    return $node => {
+      $node.remove();
+      return undefined;
+    };
+  }
+
+  if (typeof oldVTree === 'string' || typeof newVTree === 'string') {
+    if (oldVTree !== newVTree) {
+      return $node => {
+        const $newNode = render(newVTree);
+        $node.replaceWith($newNode);
+        return $newNode;
+      };
+    } else {
+      return $node => $node;
+    }
+  }
+
+  if (oldVTree.tagName !== newVTree.tagName) {
+    return $node => {
+      const $newNode = render(newVTree);
+      $node.replaceWith($newNode);
+      return $newNode;
+    };
+  }
+
+  const patchAttrs = diffAttrs(oldVTree.props, newVTree.props);
+  const patchChildren = diffChildren(oldVTree.children, newVTree.children);
+
+  return $node => {
+    patchAttrs($node);
+    patchChildren($node);
+    return $node;
+  };
+};
+
+export default diff;
+```
+
+现在，无论数字怎么变化，都只会更改数字，而不是全部进行更新了：
+
+![Untitled](/static/images/blog/frontend-virtual-dom/untitled-8.png)
+
+# 总结
+
+我们已经成功实现了一个基础的虚拟DOM。我希望读者在阅读完这篇教程后，能够尝试自己动手实现一下。通过实现Virtual DOM，你将能更深入地理解其底层工作原理。在这个过程中，你可能会产生一些新的思考和创新点，甚至可能基于现有的知识进行创新，提出改进的方案或者全新的技术。
+
+![Untitled](/static/images/blog/frontend-virtual-dom/untitled-9.png)
+
+希望能够帮助到你

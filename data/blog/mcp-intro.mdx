@@ -1,0 +1,41 @@
+---
+title: 'Model Context Protocol 入门'
+date: '2025-06-05'
+summary: '用一句话理解 MCP，并梳理其三大组成与体系结构。'
+tags: ['MCP', 'AI', '协议']
+layout: PostLayout
+draft: false
+---
+
+# Model Context Protocol入门
+
+> 参考链接：
+https://www.anthropic.com/news/model-context-protocol
+https://modelcontextprotocol.io/introduction
+https://www.youtube.com/watch?v=eur8dUO9mvE&list=LL&index=29
+https://modelcontextprotocol.info/docs/quickstart/quickstart/
+https://hackteam.io/blog/build-your-first-mcp-server-with-typescript-in-under-10-minutes/
+https://www.youtube.com/watch?v=7j1t3UZA1TY
+> 
+
+# 一句话介绍：
+
+模型上下文协议是一个开放标准，它使开发人员能够在数据源和AI驱动工具之间建立安全的双向连接。该体系结构很简单：开发人员可以通过MCP服务器揭示其数据，也可以构建连接到这些服务器的AI应用程序（MCP客户端）。
+
+将MCP视为AI应用程序的USB-C端口。正如USB-C提供了一种将设备连接到各种外围设备和配件的标准化方法一样，MCP也提供了一种**将AI模型连接到不同数据源和工具的标准化方法。**
+
+MCP 的三大组成结构：
+
+![image.png](/static/images/blog/mcp-intro/image.png)
+
+- The Model Context Protocol [specification and SDKs](https://github.com/modelcontextprotocol)模型上下文协议规范和SDK
+- Local MCP server support in the [Claude Desktop apps](https://claude.ai/download)Claude Desktop应用中的本地MCP服务器支持
+- An [open-source repository](https://github.com/modelcontextprotocol/servers) of MCP serversMCP服务器的开源存储库
+
+## MCP体系
+
+- **MCP Hosts**: Programs like Claude Desktop, IDEs, or AI tools that want to access data through MCPMCP主机：想要通过MCP访问数据的Claude Desktop，IDE或AI工具等程序
+- **MCP Clients**: Protocol clients that maintain 1:1 connections with serversMCP客户端：与服务器保持1：1连接的协议客户端
+- **MCP Servers**: Lightweight programs that each expose specific capabilities through the standardized Model Context ProtocolMCP服务器：通过标准化模型上下文协议揭示特定功能的轻量级程序
+- **Local Data Sources**: Your computer’s files, databases, and services that MCP servers can securely access本地数据源：您的计算机的文件，数据库和MCP服务器可以安全访问的服务
+- **Remote Services**: External systems available over the internet (e.g., through APIs) that MCP servers can connect to远程服务：通过Internet可用的外部系统（例如，通过API）可以连接到MCP服务器
